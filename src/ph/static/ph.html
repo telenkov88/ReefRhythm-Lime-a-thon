@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PH control</title>
+
+    <script>
+        function loadLocalCSS(local_css) {
+            console.log("Load local css ", local_css)
+            var link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = local_css; // URL to your local CSS file
+            document.head.appendChild(link);
+        }
+        function loadLocalScript(local_js) {
+            console.log("Load local js ", local_js)
+            var script = document.createElement('script');
+            script.src = local_js; // URL to your local script
+            document.head.appendChild(script);
+        }
+
+
+    </script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" onerror="loadLocalCSS('styles/bootstrap.min.css')">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js" onerror="loadLocalScript('javascript/chart.min.js')"></script>
+
+
+
+
+    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
+
+    <style>
+        header {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background-color: #f0f0f0;
+        }
+        header a {
+            text-decoration: none;
+            color: #333;
+            padding: 5px 10px;
+        }
+        .container {
+        }
+        .form-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1px;
+        }
+        label, select, input, button {
+            display: block;
+            margin-bottom: 10px;
+        }
+        body {
+        }
+
+
+    </style>
+
+
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">Dosing</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarColor01">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/calibration">Calibration</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/settings">Settings</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/ota-upgrade">OTA</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+
+    <ul class="nav nav-tabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <a class="nav-link active" data-bs-toggle="tab" href="#controltab" aria-selected="true" role="tab">PH Control</a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#reagentstab" aria-selected="false" role="tab" tabindex="-1">PH reagents</a>
+      </li>
+      <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#mqtttab" aria-selected="false" tabindex="-1" role="tab">MQTT</a>
+      </li>
+    </ul>
+
+    <div id="myTabContent" class="tab-content">
+          <div class="tab-pane fade container active show" id="controltab" role="tabpanel">
+              <h2>PH Calibration</h2>
+              <label for="ControlReagents">Reagent:</label>
+              <select class="form-select" id="ControlReagents" style="width: 200px">
+                  <option value="PH 4">Standard PH 4</option>
+                  <option value="PH 7">Standard PH 7</option>
+                  <option value="PH 9.18">Standard PH 9.18</option>
+              </select>
+
+
+              <button type="button" id="addCalBtn" onclick="addCalPoint()" class="btn btn-primary disabled">Add calibration point</button>
+              <button type="button" onclick="uploadSchedule()" class="btn btn-success">Apply</button>
+              <div id="calPointContainer"></div>
+          </div>
+
+        <div class="tab-pane fade container" id="reagentstab">
+        <h2>PH Reagents base</h2>
+            <select class="form-select" id="ReagentsBase" style="width: 200px"  onchange="updateTable()">
+                  <option value="PH 4.0@25°C">PH 4.0@25°C</option>
+                  <option value="PH 6.86@25°C">PH 6.86@25°C</option>
+                  <option value="PH 7.00@25°C">PH 7.00@25°C</option>
+                  <option value="PH 9.18@25°C">PH 9.18@25°C</option>
+                  <option value="PH 10.01@25°C">PH 10.01@25°C</option>
+            </select>
+            <div class="has-danger">
+                <input type="text" id="newReagentName" oninput="checkReagentName()" class="form-control is-invalid" placeholder="Enter new reagent name">
+                <button id="addReagentBtn" onclick="addReagent()" class="btn btn-primary disabled">Add Reagent</button>
+            </div>
+            <button onclick="saveTable()" id="saveTableBtn" class="btn btn-primary disabled">Save Changes</button>
+
+            <table id="phTable" class="table table-hover">
+                <thead>
+                    <tr class="table-secondary">
+                        <th scope="row">Temperature</th>
+                        <th>PH</th>
+                    </tr>
+                </thead>
+                <tbody  class="table-dark">
+                    <!-- Rows will be dynamically inserted here -->
+                </tbody>
+            </table>
+        </div>
+
+
+        <div class="tab-pane fade container" id="mqtttab">
+            <div id="analogControlFormsContainer"></div>
+            <div id="chart-container" style="width: 98%; aspect-ratio : 2 / 1;border:1px solid red; align-content: center ">
+                <canvas id="analogInpChart" style="width: 100%;"></canvas>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        const buildInReagents = [
+            "PH 4.0@25°C", "PH 7.00@25°C", "PH 6.86@25°C", "PH 7.00@25°C", "PH 9.18@25°C", "PH 10.01@25°C"
+        ]
+        const pHData = {
+            "PH 4.0@25°C": [
+                [10, 4.00], [15, 4.00], [20, 4.00], [25, 4.01], [30, 4.02], [35, 4.03], [40, 4.04], [45, 4.04], [50, 4.06]
+            ],
+            "PH 6.86@25°C": [
+                [10, 6.92], [15, 6.90], [20, 6.88], [25, 6.86], [30, 6.85], [35, 6.84], [40, 6.84], [45, 6.83], [50, 6.83]
+            ],
+            "PH 7.00@25°C": [
+                [10, 7.06], [15, 7.04], [20, 7.03], [25, 7.00], [30, 6.99], [35, 6.98], [40, 6.97], [45, 6.97], [50, 6.97]
+            ],
+            "PH 9.18@25°C": [
+                [10, 9.33], [15, 9.28], [20, 9.23], [25, 9.18], [30, 9.14], [35, 9.10], [40, 9.07], [45, 9.04], [50, 9.02]
+            ],
+            "PH 10.01@25°C": [
+                [10, 10.18], [15, 10.12], [20, 10.06], [25, 10.01], [30, 9.98], [35, 9.97], [40, 9.91], [45, 9.85], [50, 9.83]
+            ]
+        };
+
+    function updateTable() {
+        const select = document.getElementById("ReagentsBase");
+        const selectedValue = select.value;
+        const data = pHData[selectedValue];
+        const tbody = document.getElementById("phTable").getElementsByTagName("tbody")[0];
+        tbody.innerHTML = ""; // Clear existing rows
+        document.getElementById("saveTableBtn").classList.add("disabled")
+
+        data.forEach(([temp, ph]) => {
+            const row = tbody.insertRow();
+            row.insertCell(0).innerHTML = `${temp}`;
+            if (buildInReagents.includes(selectedValue)){
+                // Protected Build In reagent
+                row.insertCell(1).innerHTML = ph.toFixed(2);
+            } else
+                row.insertCell(1).innerHTML = `<input oninput="checkPHTable()" type="number" value="${ph.toFixed(2)}">`;
+        });
+
+        for (let i = 0; i < select.options.length; i++) {
+            const optionValue = select.options[i].value;
+            if (!(optionValue in pHData)) {
+                console.log("remove empy table", optionValue)
+                select.options[i].remove()
+            }
+        }
+    }
+
+    function checkPHTable() {
+        const table = document.getElementById("phTable");
+        const rows = table.getElementsByTagName("tbody")[0].rows;
+
+        for (let i = 0; i < rows.length; i++) {
+            const inputs = rows[i].getElementsByTagName("input");
+            const ph = parseFloat(inputs[0].value); // PH input
+            if (ph <= 0.001 || ph > 14 || !ph){
+                document.getElementById("saveTableBtn").classList.add("disabled")
+                return
+            }
+
+        }
+        document.getElementById("saveTableBtn").classList.remove("disabled")
+
+    }
+    function checkReagentName(){
+        const reagentInput = document.getElementById("newReagentName");
+        const newReagent = reagentInput.value;
+        console.log("new reagent name: ", newReagent)
+        console.log(!pHData.hasOwnProperty(newReagent))
+
+        if (newReagent.trim() === "" || pHData.hasOwnProperty(newReagent)) {
+            console.log("Invalid reagent name")
+            document.getElementById("addReagentBtn").classList.add("disabled")
+            reagentInput.classList.remove("is-valid")
+            reagentInput.classList.add("is-invalid")
+        } else {
+            console.log("Valid reagent name")
+            document.getElementById("addReagentBtn").classList.remove("disabled")
+            reagentInput.classList.remove("is-invalid")
+            reagentInput.classList.add("is-valid")
+        }
+    }
+
+    function addReagent() {
+        const reagentInput = document.getElementById("newReagentName");
+        const newReagent = reagentInput.value;
+        const select = document.getElementById("ReagentsBase");
+        const option = new Option(newReagent, newReagent);
+        select.appendChild(option);
+        reagentInput.value = ""; // Clear input after adding
+        document.getElementById("ReagentsBase").value = newReagent
+        document.getElementById("saveTableBtn").classList.add("disabled")
+        //updateTable()
+        const tbody = document.getElementById("phTable").getElementsByTagName("tbody")[0];
+        tbody.innerHTML = ""; // Clear existing rows
+        const empy_data = [10, 15, 20, 25, 30, 35, 40, 45, 50]
+        empy_data.forEach((temp) => {
+            const row = tbody.insertRow();
+            row.insertCell(0).innerHTML = `${temp}`;
+            row.insertCell(1).innerHTML = `<input oninput="checkPHTable()" type="number" value={null}">`;
+        });
+        checkReagentName()
+    }
+
+    function saveTable() {
+        const table = document.getElementById("phTable");
+        const rows = table.getElementsByTagName("tbody")[0].rows;
+        const data = [];
+        const reagent = document.getElementById("ReagentsBase").value;
+
+        for (let i = 0; i < rows.length; i++) {
+            console.log(rows[i].cells[0].textContent)
+            const temp = parseInt(rows[i].cells[0].textContent, 10); // Temperature input
+            const inputs = rows[i].getElementsByTagName("input");
+            const ph = parseFloat(inputs[0].value); // PH input
+            data.push([temp, ph]);
+        }
+
+        // Update the pHData object for the selected reagent
+        pHData[reagent] = data;
+
+        // Optional: Logging to console to see the updated pHData object
+        console.log('Updated pHData:', pHData);
+        document.getElementById("saveTableBtn").classList.add("disabled")
+    }
+
+    </script>
+</body>
+</html>
