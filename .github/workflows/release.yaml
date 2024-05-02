@@ -19,7 +19,7 @@ jobs:
         run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
 
       # Checkout latest ReefRhythm source code
-      - name: Install arm toolchain
+      - name: Download ReefRhythm source code
         run: python3 setup.py
 
       # Install the ARM toolchain
