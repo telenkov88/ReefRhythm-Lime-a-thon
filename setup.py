@@ -21,6 +21,7 @@ def clean_directory_except(base_path, keep):
 
 clean_directory_except('./src', 'ph')
 clean_directory_except('./scripts', "_skip")
+clean_directory_except('./boards', "_skip")
 
 # Download the archive
 url = "https://github.com/telenkov88/reefrhythm-smartdoser/archive/refs/tags/latest.tar.gz"
@@ -37,7 +38,8 @@ with tarfile.open(archive_path, "r:gz") as tar:
     # Modify the path and extract 'src' and 'scripts' directories
     for member in members:
         if member.name.startswith("reefrhythm-smartdoser-latest/src") or \
-                member.name.startswith("reefrhythm-smartdoser-latest/scripts"):
+                member.name.startswith("reefrhythm-smartdoser-latest/scripts") or \
+                member.name.startswith("reefrhythm-smartdoser-latest/boards"):
             member.name = '/'.join(member.name.split('/')[1:])  # Remove the first directory from the path
             tar.extract(member, path='.')
 
