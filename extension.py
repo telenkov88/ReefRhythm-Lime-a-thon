@@ -104,4 +104,3 @@ extension_tasks = [test_extension, read_sensors]
 
 # Define navbar extension here
 extension_navbar = [{"name": "PH", "link": "/ph"}]
-
