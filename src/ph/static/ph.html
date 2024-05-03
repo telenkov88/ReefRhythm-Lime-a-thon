@@ -113,7 +113,7 @@
     <div class="tab-pane fade container active show" id="calibrationtab" role="tabpanel">
         <h2>PH Calibration</h2>
         <label for="calibrationReagents">Reagent:</label>
-        <select class="form-select" id="calibrationReagents" style="width: 250px">
+        <select class="form-select" id="calibrationReagents" style="width: 250px" onchange="checkCalReagent()">
         </select>
 
 
@@ -133,7 +133,7 @@
             </tr>
             </tbody>
         </table>
-        <button type="button" id="addCalBtn" onclick="addCalPoint()" class="btn btn-primary disabled">Add calibration
+        <button type="button" id="addCalBtn" onclick="addCalPoint()" class="btn btn-primary">Add calibration
             point
         </button>
         <button type="button" onclick="uploadPHCalibtaionPoints()" class="btn btn-success">Apply</button>
@@ -198,10 +198,7 @@
 <script>
     let ph_chart_points = {"PhChartPoints ": []}
 
-    let phCalPoints = {
-        "PH 4.0@25C": {"ph": 4.0, "adc": 1.5, "temp": 25.4},
-        "PH 6.86@25C": {"ph": 6.86, "adc": 2, "temp": 24.9}
-    }
+    let phCalPoints = {}
     const buildInReagents = [
         "PH 4.0@25C", "PH 7.00@25C", "PH 6.86@25C", "PH 7.00@25C", "PH 9.18@25C", "PH 10.01@25C"
     ]
@@ -499,10 +496,42 @@
             });
     }
 
+    function addCalPoint() {
+        const reagent = document.getElementById("calibrationReagents").value
+        console.log("add calibtaion point for ", reagent)
+    }
+
+    function checkCalReagent() {
+        const reagent = document.getElementById("calibrationReagents").value
+        if (reagent in phCalPoints) {
+            console.log("Cal point already exist")
+            document.getElementById("addCalBtn").classList.add("disabled")
+        } else {
+            document.getElementById("addCalBtn").classList.remove("disabled")
+        }
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        console.log("Parsing cookie ", name)
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
 
     // Cookie event
     document.addEventListener('DOMContentLoaded', function () {
         console.log("Cookie update event")
+        phCalPoints = JSON.parse(getCookie('phCalPoints'));
+
         const selectReagentBase = document.getElementById("ReagentsBase");
         const selectCalibration = document.getElementById("calibrationReagents");
         Object.entries(pHData).forEach(entry => {
@@ -516,6 +545,7 @@
         updatePhCalTable()
         updatePHChart()
         updateTable()
+        checkCalReagent()
 
     });
 
