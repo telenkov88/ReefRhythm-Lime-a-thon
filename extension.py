@@ -26,22 +26,106 @@ except ImportError:
     ds_sensor.read_temp = Mock(return_value=25.5)
 
 import web
+from lib.stepper_doser_math import linear_interpolation
+import json
 from lib.microdot.microdot import send_file
+from lib.microdot.sse import with_sse
+
 
 # Variables
-ph = None
-tds = None
+ph_adc_avg = None
+tds_adc_avg = None
 temp = None
+ph_chart_points = []
+
+try:
+    with open("config/ph_cal_points.json", 'r') as read_file:
+        ph_cal_points = json.load(read_file)
+
+except Exception as e:
+    print("Can't load ph calibration setting config, load default ", e)
+    ph_cal_points = {}
+
+
+def interpolate_ph(data):
+    print("PH calibration points:", data)
+    points = [(data[d]['adc'], data[d]['ph']) for d in data]
+    print(points)
+    _chart_points = linear_interpolation(points)
+    print(_chart_points)
+    return _chart_points
 
 
 # define async functions here
 async def test_extension():
+    global ph_chart_points
+    if ph_cal_points:
+        ph_chart_points = interpolate_ph(ph_cal_points)
+
     # Web UI extensions also can be added to main web.py module
     @web.app.route('/ph')
-    async def test(request):
+    async def ph(request):
         response = send_file("ph/static/ph.html", compressed=False,
                              file_extension="")
         return response
+
+    @web.app.route('/ph-upload-points', methods=['POST'])
+    async def ph_upload_points(request):
+        data = request.json
+        print("PH calibration points:", data)
+        points = [(data[d]['adc'], data[d]['ph']) for d in data]
+        if len(points) < 2:
+            print("Not enought calibration points")
+            return {}
+        global ph_chart_points
+        ph_chart_points = linear_interpolation(points)
+        print(ph_chart_points)
+
+        with open("config/ph_cal_points.json", 'w') as write_file:
+            write_file.write(json.dumps(data))
+
+        return {}
+
+    @web.app.route('/ph-sse')
+    @with_sse
+    async def ph_sse(request, sse):
+        print("Got connection")
+        try:
+            while "eof" not in str(request.sock[0]):
+                event = json.dumps({
+                    "ph": 0,
+                    "ph_adc": ph_adc_avg,
+                    "temp": temp,
+                    "tds_adc": tds_adc_avg
+                })
+                await sse.send(event)  # unnamed event
+                await asyncio.sleep(1)
+        except Exception as e:
+            print(f"Error in SSE loop: {e}")
+        print("SSE closed")
+
+    @web.app.route('/ph-chart-sse')
+    @with_sse
+    async def ph_chart_sse(request, sse):
+        print("Got connection")
+        old_ph_chart_points = None
+        try:
+            while "eof" not in str(request.sock[0]):
+                if old_ph_chart_points != ph_chart_points:
+                    old_ph_chart_points = ph_chart_points.copy()
+                    event = json.dumps({
+                        "PhChartPoints": old_ph_chart_points,
+                    })
+
+                    print("send Ph Chart settigs")
+                    await sse.send(event)  # unnamed event
+                    await asyncio.sleep(1)
+                else:
+                    # print("No updates, skip")
+                    await asyncio.sleep(1)
+        except Exception as e:
+            print(f"Error in SSE loop: {e}")
+        print("SSE closed")
 
     print("Test extension")
     # Control main module from extension:
@@ -58,8 +142,9 @@ async def read_sensors():
             return None
 
     global ph
+    global ph_adc_avg
     global temp
-    global tds
+    global tds_adc_avg
     temp_sensors = ds_sensor.scan()
     print("Start sensor reading worker")
 
@@ -86,13 +171,13 @@ async def read_sensors():
                 temp_buffer.append(_temp)
             await asyncio.sleep(0.5)
         if ph_buffer:
-            ph = calculate_average(ph_buffer)
+            ph_adc_avg = calculate_average(ph_buffer)
             ph_buffer = []
-            print("PH: ", ph)
+            print("PH ADC: ", ph_adc_avg)
         if tds_buffer:
-            tds = calculate_average(tds_buffer)
+            tds_adc_avg = calculate_average(tds_buffer)
             tds_buffer = []
-            print("TDS: ", tds)
+            print("TDS: ", tds_adc_avg)
         if temp_buffer:
             temp = calculate_average(temp_buffer)
             temp_buffer = []
