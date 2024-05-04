@@ -196,6 +196,10 @@
 
 
 <script>
+    let sse_ph = 0.0
+    let sse_ph_adc = 0.0
+    let sse_temp = 0.0
+    let sse_tds_adc = 0.0
     let ph_chart_points = {"PhChartPoints ": []}
 
     let phCalPoints = {}
@@ -247,9 +251,15 @@
     phCalPointsSSE.onmessage = function (event) {
         const data = JSON.parse(event.data);
         //console.log("got sse data: ", data)
-        document.getElementById("phTh").textContent = data["ph"].toFixed(2)
-        document.getElementById("phAdcTh").textContent = data["ph_adc"].toFixed(2) + 'V'
-        document.getElementById("tempTh").textContent = data["temp"].toFixed(1) + 'C'
+        sse_ph = Number(data["ph"])
+        sse_ph_adc = Number(data["ph_adc"])
+        sse_temp = Number(data["temp"])
+        sse_tds_adc = Number(data["tds_adc"])
+
+
+        document.getElementById("phTh").textContent = sse_ph.toFixed(2)
+        document.getElementById("phAdcTh").textContent = sse_ph_adc.toFixed(2) + 'V'
+        document.getElementById("tempTh").textContent = sse_temp.toFixed(1) + 'C'
 
     }
     phChartPointsSSE.onmessage = function (event) {
@@ -499,6 +509,10 @@
     function addCalPoint() {
         const reagent = document.getElementById("calibrationReagents").value
         console.log("add calibtaion point for ", reagent)
+
+        phCalPoints[reagent] = {"ph": pHData[reagent][3][1], "adc": sse_ph_adc, "temp": sse_temp}
+        updatePhCalTable()
+        updatePHChart()
     }
 
     function checkCalReagent() {
@@ -531,6 +545,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         console.log("Cookie update event")
         phCalPoints = JSON.parse(getCookie('phCalPoints'));
+        console.log("Got calibration points:", phCalPoints)
 
         const selectReagentBase = document.getElementById("ReagentsBase");
         const selectCalibration = document.getElementById("calibrationReagents");
