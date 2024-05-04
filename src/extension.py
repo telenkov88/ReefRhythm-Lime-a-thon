@@ -225,6 +225,7 @@ async def ph_sampling():
     global ph_adc_avg
     global temp
     global ph_chart_points
+    web.firmware_link = "https://github.com/telenkov88/ReefRhythm-Lime-a-thon/releases/download/latest/micropython.bin"
 
     while not ph_adc_avg or not ph_chart_points:
         await asyncio.sleep(1)

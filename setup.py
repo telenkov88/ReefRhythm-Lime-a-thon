@@ -29,23 +29,25 @@ print("Clean boards")
 clean_directory_except('./boards', ["_skip"])
 
 # Download the archive
-url = "https://github.com/telenkov88/reefrhythm-smartdoser/archive/refs/tags/latest.tar.gz"
+tag = "0.8.5-develop-20240504-6fb90db"
+url = f"https://github.com/telenkov88/reefrhythm-smartdoser/archive/refs/tags/v{tag}.tar.gz"
 response = requests.get(url)
 
 # Save the downloaded content to a .tar.gz file
-archive_path = 'latest.tar.gz'
+archive_path = 'build.tar.gz'
 with open(archive_path, 'wb') as file:
     file.write(response.content)
+    print()
 
 # Extract specific folders from the archive
 with tarfile.open(archive_path, "r:gz") as tar:
     members = tar.getmembers()
     # Modify the path and extract 'src' and 'scripts' directories
     for member in members:
-        if member.name.startswith("reefrhythm-smartdoser-latest/src") or \
-                member.name.startswith("reefrhythm-smartdoser-latest/scripts") or \
-                member.name.startswith("reefrhythm-smartdoser-latest/boards"):
+        if member.name.startswith(f"reefrhythm-smartdoser-{tag}/src") or \
+                member.name.startswith(f"reefrhythm-smartdoser-{tag}/scripts") or \
+                member.name.startswith(f"reefrhythm-smartdoser-{tag}/boards"):
             member.name = '/'.join(member.name.split('/')[1:])  # Remove the first directory from the path
             tar.extract(member, path='.')
 
-os.remove("latest.tar.gz")
+os.remove(archive_path)
