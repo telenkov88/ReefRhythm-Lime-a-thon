@@ -12,6 +12,7 @@ def clean_directory_except(base_path, keep_patterns):
         os.stat(base_path)
     except Exception as e:
         print(f"{base_path}: ", e)
+        return True
     for subdir in os.listdir(base_path):
         full_path = os.path.join(base_path, subdir)
         if os.path.isdir(full_path) and not any(full_path.endswith(pattern) for pattern in keep_patterns):
