@@ -178,6 +178,13 @@ async def read_temp():
             # print("Temp: ", temp)
 
 
+def adc_to_volt(value):
+    if not value:
+        return 0
+    else:
+        return value/65535*5
+
+
 async def read_sensors():
     global ph_adc_avg
     global tds_adc_avg
@@ -185,22 +192,20 @@ async def read_sensors():
     print("Start PH and TDS sensor sampling")
     i2c = I2C(0, sda=Pin(8), scl=Pin(9))
     ads1115 = ADS1115(i2c, address=72, gain=1)
-    print("<<<<<<<<<<<<")
     ph_adc_buffer = []
     tds_buffer = []
     while 1:
-        print("ADS1115 read")
         for _ in range(5):
             # PH ADC
             #print(ads1115)
             _value = ads1115.read(0, 0)
-            ph_adc = ads1115.raw_to_v(_value)
+            ph_adc = adc_to_volt(_value)
             ph_adc_buffer.append(ph_adc)
             #print("ADS1115 PH Result: ", ph_adc)
 
             # TDS ADC
             _value = ads1115.read(0, 3)
-            tds_adc = ads1115.raw_to_v(_value)
+            tds_adc = adc_to_volt(_value)
             tds_buffer.append(tds_adc)
             #print("ADS1115 TDS Result: ", ph_adc)
 
