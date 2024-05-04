@@ -1,11 +1,13 @@
+import sys
+
 import requests
 import tarfile
 import os
 import shutil
 
 
-def clean_directory_except(base_path, keep):
-    """ Remove all subdirectories in the base_path except the keep_subdir """
+def clean_directory_except(base_path, keep_patterns):
+    """ Remove all subdirectories in the base_path except the keep_patterns """
     try:
         os.stat(base_path)
     except Exception as e:
@@ -13,15 +15,15 @@ def clean_directory_except(base_path, keep):
         return True
     for subdir in os.listdir(base_path):
         full_path = os.path.join(base_path, subdir)
-        if os.path.isdir(full_path) and not full_path.endswith(keep):
+        if os.path.isdir(full_path) and not any(full_path.endswith(pattern) for pattern in keep_patterns):
             shutil.rmtree(full_path)
-        elif not full_path.endswith(keep):
+        elif not any(full_path.endswith(pattern) for pattern in keep_patterns):
             os.remove(full_path)
 
 
-clean_directory_except('./src', 'ph')
-clean_directory_except('./scripts', "_skip")
-clean_directory_except('./boards', "_skip")
+clean_directory_except('./src', ['ph', 'extension.py'])
+clean_directory_except('./scripts', ["_skip"])
+clean_directory_except('./boards', ["_skip"])
 
 # Download the archive
 url = "https://github.com/telenkov88/reefrhythm-smartdoser/archive/refs/tags/latest.tar.gz"

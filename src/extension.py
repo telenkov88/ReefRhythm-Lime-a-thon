@@ -195,14 +195,14 @@ async def ph_sampling():
     global temp
     global ph_chart_points
 
-    while not ph_adc_avg:
-        await asyncio.sleep(0.5)
+    while not ph_adc_avg or not ph_chart_points:
+        await asyncio.sleep(1)
     print("Start Ph sampling")
     _old_chart_points = ph_chart_points.copy()
     adc_array = [x[0] for x in _old_chart_points]
     ph_array = [x[1] for x in _old_chart_points]
     ph = np.interp(ph_adc_avg, adc_array, ph_array)
-
+    print(f"ADC: {ph_adc_avg}, PH: {ph}")
     ph_buffer = []
     while 1:
         for _ in range(15):
@@ -222,7 +222,7 @@ async def ph_sampling():
                 ph_array = [x[1] for x in ph_chart_points]
 
             ph = np.interp(ph_avg, adc_array, ph_array)
-            print("PH: ", ph)
+            print(f"ADC: {ph_avg}, PH: {ph}")
 
 
 # Define extension async tasks here
@@ -232,6 +232,4 @@ extension_tasks = [test_extension, read_sensors, ph_sampling]
 extension_navbar = [{"name": "PH", "link": "/ph"}]
 
 if __name__ == "__main__":
-    import os
-    os.chdir('./src')
-    print(123)
+    print()
