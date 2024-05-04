@@ -72,6 +72,7 @@ async def test_extension():
     async def web_control(request):
         response = send_file("ph/static/ph.html", compressed=False,
                              file_extension="")
+        response.set_cookie("Extension", json.dumps(extension_navbar))
         response.set_cookie("phCalPoints", json.dumps(ph_cal_points))
         return response
 
