@@ -22,7 +22,7 @@ def clean_directory_except(base_path, keep_patterns):
 
 
 print("Clean src")
-clean_directory_except('./src', ['ph', 'extension.py', 'ads1x15.py'])
+clean_directory_except('./src', ['ato', 'ph', 'extension.py', 'ads1x15.py'])
 print("Clean scripts")
 clean_directory_except('./scripts', ["_skip"])
 print("Clean boards")

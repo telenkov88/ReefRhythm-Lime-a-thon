@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Top Off</title>
+
+    <script>
+        function loadLocalScript(local_js) {
+            console.log("Load local js ", local_js)
+            var script = document.createElement('script');
+            script.src = local_js; // URL to your local script
+            document.head.appendChild(script);
+        }
+
+
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            onerror="loadLocalScript('javascript/bootstrap.bundle.min.js')"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"
+            onerror="loadLocalScript('javascript/chart.min.js')"></script>
+
+
+    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
+
+    <style>
+        header {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background-color: #f0f0f0;
+        }
+
+        header a {
+            text-decoration: none;
+            color: #333;
+            padding: 5px 10px;
+        }
+
+        .container {
+        }
+
+        .form-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1px;
+        }
+
+        label, select, input, button {
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        body {
+        }
+
+
+    </style>
+
+</head>
+<body>
+<nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">Dosing</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01"
+                aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarColor01">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/calibration">Calibration</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/settings">Settings</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/ota-upgrade">OTA</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <a class="nav-link active" data-bs-toggle="tab" href="#scheduletab" aria-selected="true" role="tab">Schedule</a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" data-bs-toggle="tab" href="#settingstab" aria-selected="false" tabindex="-1" role="tab">Settings</a>
+    </li>
+</ul>
+
+<div id="myTabContent" class="tab-content">
+    <div class="tab-pane fade container active show" id="scheduletab" role="tabpanel">
+        <h2>ATO schedule</h2>
+
+        <div class="has-danger" id="startTimeDiv" style="width: 200px">
+            <label class="form-label mt-2" for="startTime">Start time:</label>
+            <input type="text" value="" class="form-control is-invalid" id="startTime" placeholder="HH:MM"
+                   oninput="checkSchedInput()">
+            <div class="invalid-feedback" id="schedFromFeedback">default error message</div>
+        </div>
+
+
+        <div class="has-danger" id="endTimeDiv" style="width: 200px">
+            <label class="form-label mt-2" for="endTime">End time:</label>
+            <input type="text" value="" class="form-control is-invalid" id="endTime" placeholder="HH:MM"
+                   oninput="checkSchedInput()">
+            <div class="invalid-feedback" id="schedToFeedback">default error message</div>
+        </div>
+
+        <label for="freqSelect" class="form-label mt-2">Frequency</label>
+        <input type="text" id="freqSelect" style="width: 200px"
+               class="form-control is-valid"
+               title="Frequency must be bigger than 15sec"
+               value="1"
+               oninput="checkSchedInput()">
+        <div class="mt-2">
+            <button type="button" id="schedAddBtn" onclick="addSchedPoint()" class="btn btn-success disabled">Add
+                schedule
+                dose
+            </button>
+            <button type="button" onclick="uploadSchedule()" class="btn btn-warning">Apply</button>
+        </div>
+        <div id="schedPointContainer">
+            <div id="schedulePointsList"></div>
+        </div>
+
+
+    </div>
+
+    <div class="tab-pane fade container" id="settingstab">
+        <h2>ATO settings</h2>
+    </div>
+</div>
+
+
+<script>
+    let scheduleData = [];
+    let timeFormat = 0
+
+    let eventSource = new EventSource("/ato-sse");
+    eventSource.onopen = function (event) {
+        console.log("SSE connection to server opened.");
+    };
+
+    eventSource.onerror = function (event) {
+        if (event.currentTarget.readyState === EventSource.CLOSED) {
+            console.log("SSE connection was closed.");
+        } else {
+            console.log("SSE Error occurred: ", event);
+        }
+    };
+
+    eventSource.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        console.log("got sse data: ", data)
+        scheduleData = data["Schedule"]
+        updateScheduleList()
+    }
+
+
+    function getCookie(name) {
+        let cookieValue = null;
+        console.log("Parsing cookie ", name)
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function switchColor(color) {
+        let color_mod
+        if (color === 'auto') {
+            const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
+            if (prefersDarkScheme.matches) {
+                color_mod = "dark"
+            } else {
+                color_mod = "light"
+            }
+        } else {
+            color_mod = color
+        }
+        document.documentElement.setAttribute('data-bs-theme', color_mod)
+    }
+
+    function loadCdnCSS(cdn_css, fallback_css) {
+        // Remove existing stylesheet if it exists
+        var existingLink = document.querySelector("link[rel='stylesheet']");
+        if (existingLink) {
+            document.head.removeChild(existingLink);
+        }
+
+        // Create new link for the new CSS
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = cdn_css;
+        link.onerror = function () {
+            console.error("Failed to load CDN CSS. Loading fallback.");
+            loadLocalCSS(fallback_css);
+        };
+        document.head.appendChild(link);
+    }
+
+    function loadLocalCSS(local_css) {
+        console.log("Loading local CSS: ", local_css)
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = local_css;
+        document.head.appendChild(link);
+    }
+
+    function switchTheme(theme) {
+        loadCdnCSS('https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/' + theme + '/bootstrap.min.css', 'styles/' + theme + 'bootstrap.min.css');
+    }
+
+
+    function convertTo12HFormat(time) {
+        // Split the time string into hours and minutes
+        if (time === "") {
+            return ""
+        }
+        console.log("convert time to 12H format: ", time)
+        const [hours24, minutes] = time.split(':');
+
+        // Parse the hour component to an integer
+        const hours = parseInt(hours24, 10);
+
+        // Determine the AM/PM suffix and adjust the hour if necessary
+        const suffix = hours >= 12 ? 'PM' : 'AM';
+        const hours12 = hours % 12 === 0 ? 12 : hours % 12; // Converts 0 to 12 for 12 AM, and 12 to 12 for 12 PM
+
+        // Format minutes to ensure two digits
+        const formattedMinutes = minutes.padStart(2, '0');
+
+        // Return the formatted time string in 12-hour format
+        console.log("New format:", `${hours12}:${formattedMinutes} ${suffix}`)
+        return `${hours12}:${formattedMinutes} ${suffix}`;
+    }
+
+    function convertTo24HFormat(time) {
+        if (time === "") {
+            return ""
+        }
+        // Extract the hours, minutes, and AM/PM part from the time string
+        const parts = time.match(/(\d+):(\d+)\s?(AM|PM)/i);
+        if (!parts) {
+            throw new Error("Invalid time format");
+        }
+
+        let [_, hours12, minutes, modifier] = parts;
+        hours12 = parseInt(hours12, 10);  // Convert string to number
+
+        // Convert 12-hour time to 24-hour time
+        let hours24 = hours12;
+        if (modifier.toUpperCase() === "PM" && hours12 !== 12) {
+            hours24 = hours12 + 12;
+        } else if (modifier.toUpperCase() === "AM" && hours12 === 12) {
+            hours24 = 0;
+        }
+
+        // Ensure the hours are formatted to two digits
+        const formattedHours = hours24.toString().padStart(2, '0');
+        // Ensure the minutes are formatted to two digits
+        const formattedMinutes = minutes.padStart(2, '0');
+
+        return `${formattedHours}:${formattedMinutes}`;
+    }
+
+    function validateTime(frequency) {
+        const startTime = document.getElementById("startTime").value;
+        const endTime = document.getElementById("endTime").value;
+
+        // Define regular expressions for both 24h and 12h formats
+        const timePattern24h = /^(?:[01]?\d|2[0-3]):[0-5]?\d$/; // 24-hour format
+        const timePattern12h = /^(1[0-2]|0?[1-9]):[0-5]\d\s?(?:AM|PM)$/i; // 12-hour format
+
+        // Determine which pattern to use based on formatTime
+        const timePattern = timeFormat === 1 ? timePattern12h : timePattern24h;
+        const feedback = "Time must be in " + (timeFormat === 1 ? "HH:MM AM/PM" : "HH:MM") + " format";
+
+
+        // Check if both times are valid
+        if (!timePattern.test(startTime)) {
+            document.getElementById("startTime").className = "form-control is-invalid"
+            document.getElementById("schedFromFeedback").textContent = feedback
+        } else {
+            document.getElementById("startTime").className = "form-control is-valid"
+        }
+
+        if (frequency > 1) {
+            document.getElementById("endTime").removeAttribute("disabled")
+            if (!timePattern.test(endTime)) {
+                document.getElementById("endTime").className = "form-control is-invalid"
+                document.getElementById("schedToFeedback").textContent = feedback
+            } else {
+                document.getElementById("endTime").className = "form-control is-valid"
+            }
+            if (!timePattern.test(startTime) || !timePattern.test(endTime)) {
+                return false
+            }
+
+
+            // Convert time string into total minutes since start of the day
+            function timeToMinutes(time) {
+                const timePattern12h = /(\d+):(\d+)\s?(AM|PM)/i;
+                let hours, minutes, modifier;
+
+                // Check if the time is in 12-hour format with AM/PM
+                if (timePattern12h.test(time)) {
+                    const parts = time.match(timePattern12h);
+                    hours = parseInt(parts[1], 10);
+                    minutes = parseInt(parts[2], 10);
+                    modifier = parts[3];
+
+                    // Convert 12-hour time to 24-hour time if needed
+                    if (modifier.toUpperCase() === "PM" && hours < 12) {
+                        hours += 12;
+                    } else if (modifier.toUpperCase() === "AM" && hours === 12) {
+                        hours = 0;
+                    }
+                } else {
+                    // Handle as 24-hour time
+                    const parts = time.split(':');
+                    hours = parseInt(parts[0], 10);
+                    minutes = parseInt(parts[1], 10);
+                }
+
+                return hours * 60 + minutes;
+            }
+
+            const minutesStartTime = timeToMinutes(startTime);
+            const minutesEndTime = timeToMinutes(endTime);
+
+
+            //console.log(minutesStartTime, minutesEndTime)
+            // Check if "from" time is before "to" time
+            if (minutesStartTime >= minutesEndTime) {
+
+                document.getElementById("endTime").className = "form-control is-invalid"
+                document.getElementById("schedToFeedback").textContent = "Much be earlier than start time"
+                document.getElementById("schedAddBtn").className = "btn btn-primary disabled"
+                return false
+            } else if ((minutesEndTime - minutesStartTime) / frequency < 0.25) {
+                // frequency less than 15sec
+                document.getElementById("freqSelect").className = "form-control is-invalid"
+                document.getElementById("schedAddBtn").className = "btn btn-primary disabled"
+                return false
+            }
+        } else {
+
+            document.getElementById("endTime").className = "form-control"
+            document.getElementById("endTime").setAttribute("disabled", "")
+
+            // Do not check time if its only one run
+            if (!timePattern.test(startTime)) {
+                return false
+            }
+        }
+
+        document.getElementById("schedAddBtn").className = "btn btn-primary"
+        return true
+    }
+
+
+    function checkPattern(inputElement, pattern, limit) {
+        let value = inputElement.value;
+        if (!pattern.test(value) || Number(value) === 0 || Number(value) > limit) {
+            inputElement.className = "form-control is-invalid";
+            return false
+        } else {
+            inputElement.className = "form-control is-valid";
+        }
+        return pattern.test(value);
+    }
+
+    function checkSchedInput() {
+        frequency = checkPattern(document.getElementById("freqSelect"), /^[0-9]{1,5}(\.[0-9]{1,8})?$/, 14400)
+        times = validateTime(Number(document.getElementById("freqSelect").value))
+
+        if (!times || !frequency) {
+            const applyButton = document.getElementById("schedAddBtn");
+            applyButton.className = "btn btn-success disabled";
+            applyButton.setAttribute('aria-disabled', 'true');
+        } else {
+            const applyButton = document.getElementById("schedAddBtn");
+            applyButton.className = "btn btn-success";
+            applyButton.setAttribute('aria-disabled', 'false');
+        }
+    }
+
+    function addSchedPoint() {
+        console.log("add scheduled job for ATO");
+        let startTime = document.getElementById('startTime').value;
+        if (timeFormat === 1) {
+            startTime = convertTo24HFormat(startTime);
+        }
+
+        const frequency = Number(document.getElementById('freqSelect').value);
+        let EndTime = ""
+        if (frequency > 1) {
+            if (timeFormat === 1) {
+                EndTime = convertTo24HFormat(document.getElementById('endTime').value);
+            } else {
+                EndTime = document.getElementById('endTime').value;
+            }
+        }
+
+        console.log(scheduleData)
+        scheduleData.push({
+            start_time: startTime,
+            end_time: EndTime,
+            frequency: frequency
+        });
+        updateScheduleList()
+    }
+    function deleteSchedulePoint(pointIndex) {
+        scheduleData.splice(pointIndex, 1);
+        updateScheduleList();
+    }
+
+
+    function updateScheduleList() {
+        const listContainer = document.getElementById("schedulePointsList");
+        listContainer.innerHTML = '';
+        console.log("Update schedule list for ATO")
+
+        const table = document.createElement('table');
+        //table.style.width="500px"
+        listContainer.appendChild(table);
+
+        // Table head
+        const headRow = table.insertRow(0);
+        const headers = ["Start", "End", "Freq", ""];
+
+        // Loop through the headers array to create each cell
+        headers.forEach(header => {
+            const cell = headRow.insertCell();
+            cell.textContent = header;
+        });
+
+
+        scheduleData.forEach((point, index) => {
+            console.log(point)
+            const row = table.insertRow(-1); // Insert a new row at the end of the table
+            row.setAttribute('style', 'text-align: left');
+
+            // Start time cell
+            const startTimeCell = row.insertCell(0);
+            if (timeFormat === 1) {
+                startTimeCell.textContent = convertTo12HFormat(`${point["start_time"]}`)
+            } else {
+                startTimeCell.textContent = `${point["start_time"]}`;
+            }
+            startTimeCell.style.width = "70px"
+
+            // End time cell
+            const endTimeCell = row.insertCell(1);
+            if (timeFormat === 1) {
+                endTimeCell.textContent = convertTo12HFormat(`${point["end_time"]}`)
+            } else {
+                endTimeCell.textContent = `${point["end_time"]}`;
+            }
+            endTimeCell.style.width = "70px"
+
+
+            // Frequency cell
+            const freqCell = row.insertCell(2);
+            freqCell.textContent = `${point["frequency"]}`;
+            freqCell.style.width = "40px"
+
+            // Delete button cell
+            const deleteCell = row.insertCell(3);
+            deleteCell.style.paddingLeft = "15px"
+            deleteCell.style.height = "20px"
+            deleteCell.style.paddingTop = "0px"
+            deleteCell.style.paddingBottom = "0px"
+            const deleteButton = document.createElement('button');
+            deleteButton.style.height = "100%";
+            deleteButton.style.height = "25px"
+            deleteButton.style.paddingTop = "0px"
+            deleteButton.style.paddingBottom = "0px"
+            deleteButton.classList = "btn btn-outline-warning"
+            deleteButton.textContent = 'Del';
+            deleteButton.onclick = function () {
+                deleteSchedulePoint(index);
+            };
+            deleteCell.appendChild(deleteButton);
+        });
+    }
+
+        //Upload schedule to controller
+    function uploadSchedule() {
+        const url = window.location.href + '/schedule';
+
+        console.log("upload data", scheduleData)
+        console.log("url", url)
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(scheduleData),
+        })
+            .then(response => {
+                console.log("Response:", response)
+            })
+            .then(data => {
+                console.log('Success:', data);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+    }
+
+
+    document.addEventListener('DOMContentLoaded', function () {
+        console.log("Cookie update event")
+        const color = getCookie("color")
+        const theme = getCookie("theme")
+        timeFormat = Number(JSON.parse(getCookie('timeFormat')));
+
+        console.log("time format:", timeFormat)
+        switchTheme(theme)
+        switchColor(color)
+        checkSchedInput()
+
+        // Load extension
+        var navbar = document.getElementById('navbarColor01');
+        const navbarExtension = JSON.parse(getCookie('Extension'));
+        console.log("Extension:", navbarExtension)
+        navbarExtension.forEach(addon => {
+            console.log("Add ", addon)
+            var newNavItem = document.createElement('li');
+            newNavItem.className = 'nav-item';
+
+            // Create the link within the list item
+            var navLink = document.createElement('a');
+            navLink.className = 'nav-link';
+            navLink.href = addon["link"];  // Link URL
+            navLink.textContent = addon["name"];  // Link text
+
+            // Append the link to the list item, and the list item to the navbar
+            newNavItem.appendChild(navLink);
+            navbar.querySelector('.navbar-nav').appendChild(newNavItem);
+        });
+    });
+
+</script>
+
+</body>
+</html>
