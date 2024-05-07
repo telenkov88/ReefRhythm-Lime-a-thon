@@ -308,7 +308,7 @@ async def ato_worker():
     while True:
         if tds_adc_avg >= 0.3:
             ato.value(0)
-        await asyncio.sleep(5)
+        await asyncio.sleep(1)
 
 
 async def ph_sampling():
