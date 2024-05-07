@@ -29,7 +29,7 @@ print("Clean boards")
 clean_directory_except('./boards', ["_skip"])
 
 # Download the archive
-tag = "0.9-develop-20240506-f69a7fa"
+tag = "0.9-develop-20240507-f9be5d6"
 url = f"https://github.com/telenkov88/reefrhythm-smartdoser/archive/refs/tags/v{tag}.tar.gz"
 response = requests.get(url)
 
