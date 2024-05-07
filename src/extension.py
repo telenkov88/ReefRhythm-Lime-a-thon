@@ -213,11 +213,11 @@ async def read_sensors():
         if ph_adc_buffer:
             ph_adc_avg = calculate_average(ph_adc_buffer)
             ph_adc_buffer = []
-            # print("PH ADC: ", ph_adc_avg)
+        print("PH ADC: ", ph_adc_avg)
         if tds_buffer:
             tds_adc_avg = calculate_average(tds_buffer)
             tds_buffer = []
-            # print("TDS: ", tds_adc_avg)
+        print("TDS: ", tds_adc_avg)
 
 
 async def ph_sampling():
@@ -253,7 +253,7 @@ async def ph_sampling():
                 adc_array = [x[0] for x in ph_chart_points]
                 ph_array = [x[1] for x in ph_chart_points]
 
-            ph = np.interp(ph_avg, adc_array, ph_array)
+            ph = web.to_float(np.interp(ph_avg, adc_array, ph_array))
             print(f"ADC: {ph_avg}, PH: {ph}")
 
 

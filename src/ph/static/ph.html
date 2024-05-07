@@ -249,6 +249,7 @@
     };
 
     phCalPointsSSE.onmessage = function (event) {
+        console.log(event.data)
         const data = JSON.parse(event.data);
         //console.log("got sse data: ", data)
         sse_ph = Number(data["ph"])
