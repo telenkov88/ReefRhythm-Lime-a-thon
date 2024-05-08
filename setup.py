@@ -29,8 +29,8 @@ print("Clean boards")
 clean_directory_except('./boards', ["_skip"])
 
 # Download the archive
-tag = "0.9-develop-20240507-f9be5d6"
-url = f"https://github.com/telenkov88/reefrhythm-smartdoser/archive/refs/tags/v{tag}.tar.gz"
+tag = "latest"
+url = f"https://github.com/telenkov88/reefrhythm-smartdoser/archive/refs/tags/{tag}.tar.gz"
 response = requests.get(url)
 
 # Save the downloaded content to a .tar.gz file
