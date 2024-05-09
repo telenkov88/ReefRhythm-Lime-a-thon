@@ -272,7 +272,7 @@ async def read_sensors():
     global tds_adc_avg
 
     print("Start PH and TDS sensor sampling")
-    i2c = I2C(0, sda=Pin(36), scl=Pin(37))
+    i2c = I2C(0, sda=Pin(46), scl=Pin(9))
     ads1115 = ADS1115(i2c, address=72, gain=1)
     ph_adc_buffer = []
     tds_buffer = []
