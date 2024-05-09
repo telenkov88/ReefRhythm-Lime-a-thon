@@ -329,7 +329,7 @@ def adc_to_volt(value):
     if not value:
         return 0
     else:
-        return value / 65535 * 5
+        return value / 65535 * 4.096
 
 
 async def read_sensors():
