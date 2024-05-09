@@ -2,7 +2,6 @@
 
 try:
     import uasyncio as asyncio
-    from machine import I2C, Pin
     from ulab import numpy as np
     from machine import I2C, Pin
 
@@ -273,7 +272,7 @@ async def read_sensors():
     global tds_adc_avg
 
     print("Start PH and TDS sensor sampling")
-    i2c = I2C(0, sda=Pin(8), scl=Pin(9))
+    i2c = I2C(0, sda=Pin(36), scl=Pin(37))
     ads1115 = ADS1115(i2c, address=72, gain=1)
     ph_adc_buffer = []
     tds_buffer = []
