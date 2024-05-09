@@ -50,6 +50,8 @@ ph_adc_avg = None
 tds_adc_avg = 0
 temp = None
 ph_chart_points = []
+ph_points = []
+voltage_points = []
 
 ato = Pin(45, Pin.OUT)
 ato.value(0)
@@ -94,20 +96,72 @@ except Exception as e:
     ph_cal_points = {}
 
 
-def interpolate_ph(data):
-    print("PH calibration points:", data)
-    points = [(data[d]['adc'], data[d]['ph']) for d in data]
-    print(points)
-    _chart_points = linear_interpolation(points)
-    print(_chart_points)
-    return _chart_points
+def manual_sort(data):
+    # Convert data to a list of tuples if it's not already, sort it by the first element (pH)
+    return sorted(data, key=lambda x: x[0])
+
+
+def extrapolate(data, min_ph=0, max_ph=14, num_points=20):
+    # Manually sort the data by pH
+    sorted_data = manual_sort(data)
+
+    # Using indexing to pick the lowest and highest range for extrapolation
+    low_range = sorted_data[:2]  # Take the first two entries for low range extrapolation
+    high_range = sorted_data[-2:]  # Take the last two entries for high range extrapolation
+
+    # Linear extrapolation for the low end
+    slope_low = (low_range[1][1] - low_range[0][1]) / (low_range[1][0] - low_range[0][0])
+    intercept_low = low_range[0][1] - slope_low * low_range[0][0]
+    x_low = np.linspace(min_ph, low_range[0][0], num=num_points)
+    y_low = slope_low * x_low + intercept_low
+
+    # Linear extrapolation for the high end
+    slope_high = (high_range[1][1] - high_range[0][1]) / (high_range[1][0] - high_range[0][0])
+    intercept_high = high_range[1][1] - slope_high * high_range[1][0]
+    x_high = np.linspace(high_range[1][0], max_ph, num=num_points)
+    y_high = slope_high * x_high + intercept_high
+
+    # Create full arrays by manually concatenating lists, since ulab numpy may not support concatenate
+    full_x = list(x_low) + [x[0] for x in sorted_data] + list(x_high)
+    full_y = list(y_low) + [y[1] for y in sorted_data] + list(y_high)
+
+    # Convert lists back to ulab numpy arrays
+    full_x = np.array(full_x)
+    full_y = np.array(full_y)
+
+    return full_x, full_y
+
+
+def linear_interpolation(data, num_points=20):
+    merged = []
+    # Extract points from the data dictionary and sort by pH value
+    points = [(d['ph'], d['adc']) for d in data.values()]
+    points.sort(key=lambda x: x[0])  # Sorting by pH value
+
+    # Perform linear interpolation between points in each range
+    for i in range(len(points) - 1):
+        x_start, y_start = points[i]
+        x_end, y_end = points[i + 1]
+
+        x_range = np.linspace(x_start, x_end, num=num_points)
+        y_range = np.linspace(y_start, y_end, num=num_points)
+        merged.extend(list(zip(x_range, y_range)))
+
+    return merged
 
 
 # define async functions here
 async def test_extension():
     global ph_chart_points
+    global ph_points, voltage_points
     if ph_cal_points:
-        ph_chart_points = interpolate_ph(ph_cal_points)
+        print("Interpolate ph points")
+        ph_chart_points = linear_interpolation(ph_cal_points)
+        print("Extrapolate PH chart")
+        ph_points, voltage_points = extrapolate(ph_chart_points)
+        print("Extrapolation finished")
+
+    print(ph_points)
 
     @web.app.route('/ato')
     async def web_control(request):
@@ -139,8 +193,10 @@ async def test_extension():
             print("Not enought calibration points")
             return {}
         global ph_chart_points
+        global ph_points, voltage_points
         ph_chart_points = linear_interpolation(points)
-        print(ph_chart_points)
+        ph_points, voltage_points = extrapolate(ph_chart_points)
+        #print(ph_chart_points)
 
         with open("config/ph_cal_points.json", 'w') as write_file:
             write_file.write(json.dumps(data))
@@ -155,7 +211,7 @@ async def test_extension():
         print("Got connection")
         old_ato_schedule = None
         try:
-            while "eof" not in str(request.sock[0]):
+            for _ in range(30):
                 if old_ato_schedule != _schedule:
                     print("<<<", _schedule)
                     old_ato_schedule = _schedule.copy()
@@ -189,8 +245,12 @@ async def test_extension():
     @with_sse
     async def ph_sse(request, sse):
         print("Got connection")
+        global ph_adc_avg
+        global ph
+        global temp
+        global tds_adc_avg
         try:
-            while "eof" not in str(request.sock[0]):
+            for _ in range(30):
                 event = json.dumps({
                     "ph": ph,
                     "ph_adc": ph_adc_avg,
@@ -209,12 +269,17 @@ async def test_extension():
         print("Got connection")
         old_ph_chart_points = None
         try:
-            while "eof" not in str(request.sock[0]):
+            for _ in range(10):
                 if old_ph_chart_points != ph_chart_points:
                     old_ph_chart_points = ph_chart_points.copy()
+                    print(ph_points)
+                    print(voltage_points)
                     event = json.dumps({
                         "PhChartPoints": old_ph_chart_points,
+                        "PhPoints": ph_points.tolist(),
+                        "AdcPoints": voltage_points.tolist()
                     })
+                    print("event")
 
                     print("send Ph Chart settigs")
                     await sse.send(event)  # unnamed event
@@ -239,8 +304,8 @@ def calculate_average(values):
 async def read_temp():
     global temp
     # TODO add non-blocking temp sensor sampling
-    temp = 25.5
-    return True
+    #temp = 25.5
+    #return True
     temp_sensors = ds_sensor.scan()
     print("Start Temp sensor sampling")
     temp_buffer = []
@@ -281,7 +346,7 @@ async def read_sensors():
             # PH ADC
             # print(ads1115)
             _value = ads1115.read(0, 0)
-            ph_adc = adc_to_volt(_value)
+            ph_adc = adc_to_volt(_value) + 0.00001
             ph_adc_buffer.append(ph_adc)
             # print("ADS1115 PH Result: ", ph_adc)
 
@@ -317,13 +382,10 @@ async def ph_sampling():
     global ph_chart_points
     web.firmware_link = "https://github.com/telenkov88/ReefRhythm-Lime-a-thon/releases/download/latest/micropython.bin"
 
-    while not ph_adc_avg or not ph_chart_points:
-        await asyncio.sleep(1)
+    while not ph_adc_avg or not ph_points:
+        await asyncio.sleep(5)
     print("Start Ph sampling")
-    _old_chart_points = ph_chart_points.copy()
-    adc_array = [x[0] for x in _old_chart_points]
-    ph_array = [x[1] for x in _old_chart_points]
-    ph = np.interp(ph_adc_avg, adc_array, ph_array)
+    ph = web.to_float(np.interp(ph_adc_avg, ph_points, voltage_points))
     print(f"ADC: {ph_adc_avg}, PH: {ph}")
     ph_buffer = []
     while 1:
@@ -338,12 +400,8 @@ async def ph_sampling():
             print("PH ADC: ", ph_adc_avg)
             print("TDS: ", tds_adc_avg)
             print("Temp: ", temp)
-            if _old_chart_points != ph_chart_points:
-                _old_chart_points = ph_chart_points.copy()
-                adc_array = [x[0] for x in ph_chart_points]
-                ph_array = [x[1] for x in ph_chart_points]
 
-            ph = web.to_float(np.interp(ph_avg, adc_array, ph_array))
+            ph = web.to_float(np.interp(ph_avg, ph_points, voltage_points))
             print(f"ADC: {ph_avg}, PH: {ph}")
 
 

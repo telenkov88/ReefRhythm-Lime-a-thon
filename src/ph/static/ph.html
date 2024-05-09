@@ -186,6 +186,7 @@
 
 
 <script>
+    let first_start = true
     let sse_ph = 0.0
     let sse_ph_adc = 0.0
     let sse_temp = 0.0
@@ -288,7 +289,7 @@
     };
 
     phCalPointsSSE.onmessage = function (event) {
-        console.log(event.data)
+        console.log("got sse data", event.data)
         const data = JSON.parse(event.data);
         //console.log("got sse data: ", data)
         sse_ph = Number(data["ph"])
@@ -302,11 +303,50 @@
         document.getElementById("tempTh").textContent = sse_temp.toFixed(1) + 'C'
 
     }
+
+
+    // A function to extract value as an array and compare them
+    function equalsCheck(a, b) {
+        console.log("1:", a)
+        console.log("2:", b)
+        // check the length
+        if (a.length !== b.length) {
+            return false;
+        } else {
+            let result = false;
+
+            // comparing each element of array
+            for (let i = 0; i < a.length; i++) {
+
+                if (a[i] !== b[i]) {
+                    return false;
+                } else {
+                    result = true;
+                }
+            }
+            return result;
+        }
+    }
+
+
     phChartPointsSSE.onmessage = function (event) {
         const data = JSON.parse(event.data);
         console.log("Got sse Chart points", data)
-        ph_chart_points = data
-        updatePHChart()
+
+        if (first_start){
+            ph_chart_points = data
+            updatePHChart()
+            first_start = false
+        } else {
+            console.log(data)
+            if (!equalsCheck(ph_chart_points, data)) {
+                console.log("skip chart update")
+            } else {
+                ph_chart_points = data
+                updatePHChart()
+            }
+        }
+
     }
 
 
@@ -469,7 +509,7 @@
 
     function updatePHChart() {
         console.log("Update PH chart");
-
+        console.log(phCalPoints)
         // Transform the object into an array of objects suitable for the chart
         const calibrationPoints = Object.values(phCalPoints).map(point => ({
             x: point.adc,
@@ -479,9 +519,9 @@
         let interpolatedPoints = []
         console.log("points for interpolatin:", ph_chart_points)
         if (ph_chart_points["PhChartPoints"]) {
-            interpolatedPoints = ph_chart_points["PhChartPoints"].map(point => ({
-                x: point[0],
-                y: point[1]
+            interpolatedPoints = ph_chart_points.PhPoints.map((ph, index) => ({
+                x: ph_chart_points.AdcPoints[index],
+                y: ph
             }));
         }
 

@@ -138,8 +138,36 @@
 
 
 <script>
+    let firstStart = false
     let scheduleData = [];
     let timeFormat = 0
+
+
+
+    // A function to extract value as an array and compare them
+    function equalsCheck(a, b) {
+        console.log("1:", a)
+        console.log("2:", b)
+        // check the length
+        if (a.length !== b.length) {
+            return false;
+        } else {
+            let result = false;
+
+            // comparing each element of array
+            for (let i = 0; i < a.length; i++) {
+
+                if (a[i] !== b[i]) {
+                    return false;
+                } else {
+                    result = true;
+                }
+            }
+            return result;
+        }
+    }
+
+
 
     let eventSource = new EventSource("/ato-sse");
     eventSource.onopen = function (event) {
@@ -157,8 +185,20 @@
     eventSource.onmessage = function (event) {
         const data = JSON.parse(event.data);
         console.log("got sse data: ", data)
-        scheduleData = data["Schedule"]
-        updateScheduleList()
+        if (firstStart === false){
+            scheduleData = data["Schedule"]
+            updateScheduleList()
+            firstStart = true
+        } else {
+            console.log(scheduleData)
+             if (!equalsCheck(scheduleData, data["Schedule"])) {
+                console.log("skip schedule update")
+            } else {
+                scheduleData = data["Schedule"]
+                updateScheduleList()
+            }
+
+        }
     }
 
 
