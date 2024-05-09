@@ -129,7 +129,7 @@ def extrapolate(data, min_ph=0, max_ph=14, num_points=20):
     full_x = np.array(full_x)
     full_y = np.array(full_y)
 
-    return full_x, full_y
+    return np.flip(full_x), np.flip(full_y)
 
 
 def linear_interpolation(data, num_points=20):
@@ -385,7 +385,7 @@ async def ph_sampling():
     while not ph_adc_avg or not ph_points:
         await asyncio.sleep(5)
     print("Start Ph sampling")
-    ph = web.to_float(np.interp(ph_adc_avg, ph_points, voltage_points))
+    ph = web.to_float(np.interp(ph_adc_avg, voltage_points, ph_points))
     print(f"ADC: {ph_adc_avg}, PH: {ph}")
     ph_buffer = []
     while 1:
@@ -401,7 +401,7 @@ async def ph_sampling():
             print("TDS: ", tds_adc_avg)
             print("Temp: ", temp)
 
-            ph = web.to_float(np.interp(ph_avg, ph_points, voltage_points))
+            ph = web.to_float(np.interp(ph_avg, voltage_points, ph_points))
             print(f"ADC: {ph_avg}, PH: {ph}")
 
 
