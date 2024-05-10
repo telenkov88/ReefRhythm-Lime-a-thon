@@ -134,6 +134,7 @@ def extrapolate(data, min_ph=0, max_ph=14, num_points=20):
 
 def linear_interpolation(data, num_points=20):
     merged = []
+    print(data)
     # Extract points from the data dictionary and sort by pH value
     points = [(d['ph'], d['adc']) for d in data.values()]
     points.sort(key=lambda x: x[0])  # Sorting by pH value
@@ -194,7 +195,7 @@ async def test_extension():
             return {}
         global ph_chart_points
         global ph_points, voltage_points
-        ph_chart_points = linear_interpolation(points)
+        ph_chart_points = linear_interpolation(data)
         ph_points, voltage_points = extrapolate(ph_chart_points)
         #print(ph_chart_points)
 
@@ -296,7 +297,7 @@ def calculate_average(values):
     # print(f"Calculete average, len: {len(values)}")
     if len(values) > 0:
         average = sum(values) / len(values)
-        return round(average, 4)
+        return round(average, 6)
     else:
         return None
 
@@ -325,11 +326,14 @@ async def read_temp():
             # print("Temp: ", temp)
 
 
-def adc_to_volt(value):
+def adc_to_volt(value, debug=False):
     if not value:
         return 0
     else:
-        return value / 65535 * 4.096
+        _volt = value / 32768 * 4.096
+        if debug:
+            print(f"convert {value} to {_volt}V")
+        return _volt
 
 
 async def read_sensors():
@@ -346,6 +350,7 @@ async def read_sensors():
             # PH ADC
             # print(ads1115)
             _value = ads1115.read(0, 0)
+            #print("PH adc: ", _value)
             ph_adc = adc_to_volt(_value) + 0.00001
             ph_adc_buffer.append(ph_adc)
             # print("ADS1115 PH Result: ", ph_adc)
@@ -413,3 +418,4 @@ extension_navbar = [{"name": "PH", "link": "/ph"}, {"name": "ATO", "link": "/ato
 
 if __name__ == "__main__":
     asyncio.run(read_sensors())
+
