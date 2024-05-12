@@ -1,4 +1,5 @@
 # import main module
+import time
 
 try:
     import uasyncio as asyncio
@@ -52,6 +53,7 @@ temp = None
 ph_chart_points = []
 ph_points = []
 voltage_points = []
+ato_start = time.time()
 
 ato = Pin(45, Pin.OUT)
 ato.value(0)
@@ -70,6 +72,8 @@ except Exception as e:
 
 def enable_ato_cb(callback_id, current_time, callback_memory):
     print("ATO enabled ")
+    global ato_start
+    ato_start = time.time()
     _ato = Pin(45, Pin.OUT)
     _ato.value(1)
 
@@ -374,8 +378,9 @@ async def read_sensors():
 
 async def ato_worker():
     global ato
+    global ato_start
     while True:
-        if tds_adc_avg >= 0.3:
+        if tds_adc_avg >= 0.1 or time.time() > ato_start + 300:
             ato.value(0)
         await asyncio.sleep(1)
 
