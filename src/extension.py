@@ -73,6 +73,7 @@ except Exception as e:
 def enable_ato_cb(callback_id, current_time, callback_memory):
     print("ATO enabled ")
     global ato_start
+    web.storage[f"remaining1"] = web.storage[f"pump1"]
     ato_start = time.time()
     _ato = Pin(45, Pin.OUT)
     _ato.value(1)
