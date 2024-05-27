@@ -293,7 +293,7 @@ def adc_to_volt(value, debug=False):
     if not value:
         return 0
     else:
-        _volt = value / 4096 * 3.3
+        _volt = round(value / 4096 * 3.3, 2)
         if debug:
             print(f"convert {value} to {_volt}V")
         return _volt
@@ -324,7 +324,7 @@ async def ato_worker():
     global ato_start
     float_sensor = Pin(6, mode=Pin.IN, pull=Pin.PULL_UP)
     while True:
-        if tds_adc_avg >= 0.1 or float_sensor.value() or time.time() > ato_start + 300:
+        if tds_adc_avg >= 0.5 or float_sensor.value() or time.time() > ato_start + 300:
             ato.value(0)
         await asyncio.sleep(1)
 
