@@ -51,3 +51,10 @@ with tarfile.open(archive_path, "r:gz") as tar:
             tar.extract(member, path='.')
 
 os.remove(archive_path)
+
+with open("./src/config/pin_config.py", 'r') as pin_config:
+    config = pin_config.read()
+    config = config.replace("analog_pins = [5, 6, 7, 15, 16, 17, 18, 8, 3]  # Allowed ADC pins for pumps control",
+                   "analog_pins = [7, 15, 16, 17, 18, 8, 3]  # Allowed ADC pins for pumps control")
+with open("./src/config/pin_config.py", 'w') as pin_config:
+    pin_config.write(config)

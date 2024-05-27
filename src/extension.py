@@ -4,13 +4,7 @@ import time
 try:
     import uasyncio as asyncio
     from ulab import numpy as np
-    from machine import I2C, Pin
-
-    import onewire
-    import ds18x20
-    from ads1x15 import ADS1115
-
-    ds_sensor = ds18x20.DS18X20(onewire.OneWire(Pin(21)))
+    from machine import I2C, Pin, ADC
 
 except ImportError:
     import asyncio
@@ -18,26 +12,14 @@ except ImportError:
     from unittest.mock import Mock, MagicMock
 
     loaded = False
-    i2c = 123
     Pin = Mock()
-    ds18x20 = Mock()
-    ds_sensor = Mock()
-    ds_sensor.scan = Mock(return_value=[1])
-    ds_sensor.convert_temp = Mock()
-    ds_sensor.read_temp = Mock(return_value=25.5)
-    print("Mocking ads1115")
-
-
-    class ADS1115:
+    class ADC:
         def __init__(self, *args):
-            print("Init ADS1115")
+            print("Init ADC")
 
         def read(self):
             # Implement mock behavior for the read method
             return 100  # Return a dummy value
-
-        def raw_to_v(self):
-            return 1.55
 
 import web
 from lib.stepper_doser_math import linear_interpolation
@@ -55,7 +37,7 @@ ph_points = []
 voltage_points = []
 ato_start = time.time()
 
-ato = Pin(45, Pin.OUT)
+ato = Pin(48, Pin.OUT)
 ato.value(0)
 
 
@@ -75,7 +57,7 @@ def enable_ato_cb(callback_id, current_time, callback_memory):
     global ato_start
     web.storage[f"remaining1"] = web.storage[f"pump1"]
     ato_start = time.time()
-    _ato = Pin(45, Pin.OUT)
+    _ato = Pin(48, Pin.OUT)
     _ato.value(1)
 
 
@@ -307,70 +289,30 @@ def calculate_average(values):
         return None
 
 
-async def read_temp():
-    global temp
-    # TODO add non-blocking temp sensor sampling
-    #temp = 25.5
-    #return True
-    temp_sensors = ds_sensor.scan()
-    print("Start Temp sensor sampling")
-    temp_buffer = []
-
-    while 1:
-        for _ in range(5):
-            # Temp
-            if temp_sensors:
-                ds_sensor.convert_temp()
-                _temp = ds_sensor.read_temp(temp_sensors[0])
-                temp_buffer.append(_temp)
-            await asyncio.sleep(0.5)
-
-        if temp_buffer:
-            temp = calculate_average(temp_buffer)
-            temp_buffer = []
-            # print("Temp: ", temp)
-
-
 def adc_to_volt(value, debug=False):
     if not value:
         return 0
     else:
-        _volt = value / 32768 * 4.096
+        _volt = value / 4096 * 3.3
         if debug:
             print(f"convert {value} to {_volt}V")
         return _volt
 
 
 async def read_sensors():
-    global ph_adc_avg
     global tds_adc_avg
-
-    print("Start PH and TDS sensor sampling")
-    i2c = I2C(0, sda=Pin(46), scl=Pin(9))
-    ads1115 = ADS1115(i2c, address=72, gain=1)
-    ph_adc_buffer = []
+    _adc = ADC(Pin(5, mode=Pin.IN, pull=None))
+    print("Start TDS sensor sampling")
     tds_buffer = []
     while 1:
         for _ in range(5):
-            # PH ADC
-            # print(ads1115)
-            _value = ads1115.read(0, 0)
-            #print("PH adc: ", _value)
-            ph_adc = adc_to_volt(_value) + 0.00001
-            ph_adc_buffer.append(ph_adc)
-            # print("ADS1115 PH Result: ", ph_adc)
-
             # TDS ADC
-            _value = ads1115.read(0, 3)
+            _value = _adc.read()
             tds_adc = adc_to_volt(_value)
             tds_buffer.append(tds_adc)
             # print("ADS1115 TDS Result: ", ph_adc)
 
             await asyncio.sleep(0.5)
-        if ph_adc_buffer:
-            ph_adc_avg = calculate_average(ph_adc_buffer)
-            ph_adc_buffer = []
-        print("PH ADC: ", ph_adc_avg)
         if tds_buffer:
             tds_adc_avg = calculate_average(tds_buffer)
             tds_buffer = []
@@ -380,47 +322,18 @@ async def read_sensors():
 async def ato_worker():
     global ato
     global ato_start
+    float_sensor = Pin(6, mode=Pin.IN, pull=Pin.PULL_UP)
     while True:
-        if tds_adc_avg >= 0.1 or time.time() > ato_start + 300:
+        if tds_adc_avg >= 0.1 or float_sensor.value() or time.time() > ato_start + 300:
             ato.value(0)
         await asyncio.sleep(1)
 
 
-async def ph_sampling():
-    global ph
-    global ph_adc_avg
-    global temp
-    global ph_chart_points
-    web.firmware_link = "https://github.com/telenkov88/ReefRhythm-Lime-a-thon/releases/download/latest/micropython.bin"
-
-    while not ph_adc_avg or not ph_points:
-        await asyncio.sleep(5)
-    print("Start Ph sampling")
-    ph = web.to_float(np.interp(ph_adc_avg, voltage_points, ph_points))
-    print(f"ADC: {ph_adc_avg}, PH: {ph}")
-    ph_buffer = []
-    while 1:
-        for _ in range(15):
-            # PH
-            ph_buffer.append(ph_adc_avg)
-            await asyncio.sleep(1)
-        print(ph_buffer)
-        if ph_buffer:
-            ph_avg = calculate_average(ph_buffer)
-            ph_buffer = []
-            print("PH ADC: ", ph_adc_avg)
-            print("TDS: ", tds_adc_avg)
-            print("Temp: ", temp)
-
-            ph = web.to_float(np.interp(ph_avg, voltage_points, ph_points))
-            print(f"ADC: {ph_avg}, PH: {ph}")
-
-
 # Define extension async tasks here
-extension_tasks = [test_extension, read_sensors, read_temp, ph_sampling, ato_worker]
+extension_tasks = [test_extension, read_sensors, ato_worker]
 
 # Define navbar extension here
-extension_navbar = [{"name": "PH", "link": "/ph"}, {"name": "ATO", "link": "/ato"}]
+extension_navbar = [{"name": "ATO", "link": "/ato"}]
 
 if __name__ == "__main__":
     asyncio.run(read_sensors())
